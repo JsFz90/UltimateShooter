@@ -2,47 +2,80 @@
 
 
 #include "ShooterCharacter.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
+
+#include "EnhancedInputSubsystems.h"  //EnhancedInput
+#include "EnhancedInputComponent.h"   //EnhancedInput
 
 // Sets default values
-AShooterCharacter::AShooterCharacter()
+AShooterCharacter::AShooterCharacter() : BaseTurnRate(45.f), BaseLookUpRate(45.f)
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	/** Create a camera boom  (pulls in towards the character if there is a collision) */
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	CameraBoom->SetupAttachment(RootComponent);
+	CameraBoom->TargetArmLength = 300.f;         // Camera fallows at this distance behind the character
+	CameraBoom->bUsePawnControlRotation = true;   // Rotate the arm based on the controller
+
+	/** Create a follow camera  */
+	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);  // Attach camera to end of boom
+	FollowCamera->bUsePawnControlRotation = false;                               // Camera does not rotate relative to arm
 }
 
 // Called when the game starts or when spawned
 void AShooterCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Add Input Mapping Context
+	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		{
+			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+		}
+	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("BeginPlay() called!"));
-	
-	int myInteger{ 42 };
-	UE_LOG(LogTemp, Warning, TEXT("int myInteger: %d"), myInteger);
-
-	float myFloat{ 3.14159f };
-	UE_LOG(LogTemp, Warning, TEXT("float myFloat: %f"), myFloat);
-
-	double myDouble{0.000756};
-	UE_LOG(LogTemp, Warning, TEXT("double myDouble: %lf"), myDouble);
-
-	char myChar{'J'};
-	UE_LOG(LogTemp, Warning, TEXT("char myChar: %c"), myChar);
-
-	wchar_t wideChar{L'J'};
-	UE_LOG(LogTemp, Warning, TEXT("wchar_t wideChar: %lc"), wideChar);
-
-	bool myBool{ true };
-	UE_LOG(LogTemp, Warning, TEXT("bool myBool: %d"), myBool);
-
-	UE_LOG(LogTemp, Warning, TEXT("int: %d, float: %f, bool: %d"), myInteger, myFloat, myBool);
-
-	FString myString{ TEXT("MyString!!") };
-	UE_LOG(LogTemp, Warning, TEXT("FString myString: %s"), *myString);
-
-	UE_LOG(LogTemp, Warning, TEXT("Name of instance: %s"), *GetName());
 }
+
+void AShooterCharacter::Move(const FInputActionValue& Value)
+{
+	// Input is a Vector2D
+	FVector2D MovementVector{ Value.Get<FVector2D>() };
+	
+	if (GetController() && (MovementVector.Y != 0 || MovementVector.X != 0))
+	{
+		// Add movement 
+		AddMovementInput(GetActorForwardVector(), MovementVector.Y);
+		AddMovementInput(GetActorRightVector(), MovementVector.X);
+
+		/** Other Way to do the same */
+		/*const FRotator Rotation{ GetController()->GetControlRotation() };
+		const FRotator YawRotation{ 0, Rotation.Yaw, 0 };
+		const FVector ForwardDirection{ FRotationMatrix{ YawRotation }.GetUnitAxis(EAxis::X)};
+		const FVector RightDirection{ FRotationMatrix{ YawRotation }.GetUnitAxis(EAxis::Y) };
+		AddMovementInput(ForwardDirection, MovementVector.Y);
+		AddMovementInput(RightDirection, MovementVector.X);*/
+	}
+}
+
+void AShooterCharacter::Look(const FInputActionValue& Value)
+{
+	// Input is a Vector2D
+	FVector2D LookAxisVector{ Value.Get<FVector2D>() };
+
+	if (GetController() && (LookAxisVector.Y != 0 || LookAxisVector.X != 0))
+	{
+		// add yaw and pitch input to controller
+		AddControllerPitchInput(LookAxisVector.Y * BaseLookUpRate * GetWorld()->GetDeltaSeconds()); // Up/Down (Y axis)     deg/sec * sec/frame = deg/frame
+		AddControllerYawInput(LookAxisVector.X * BaseTurnRate * GetWorld()->GetDeltaSeconds());     // Left/Right (Z axis)  deg/sec * sec/frame = deg/frame
+	}
+}
+
 
 // Called every frame
 void AShooterCharacter::Tick(float DeltaTime)
@@ -56,5 +89,17 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	// Set up action bindings
+	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		// Move
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Move);
+		// Look 
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Look);
+		// Jump
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+
+	}
 }
 
