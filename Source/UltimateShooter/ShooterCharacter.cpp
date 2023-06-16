@@ -2,6 +2,7 @@
 
 
 #include "ShooterCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 
@@ -24,6 +25,18 @@ AShooterCharacter::AShooterCharacter() : BaseTurnRate(45.f), BaseLookUpRate(45.f
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);  // Attach camera to end of boom
 	FollowCamera->bUsePawnControlRotation = false;                               // Camera does not rotate relative to arm
+
+	// Orient Rotation To Movement
+	// Don't rotate when the controller rotates. Let the controller only affect the camera
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
+
+	// Configure character movement
+	GetCharacterMovement()->bOrientRotationToMovement = true;  // Character moves in the direction of input
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);  // at this rotation rate - Yaw Direction (Z)
+	GetCharacterMovement()->JumpZVelocity = 600.f;
+	GetCharacterMovement()->AirControl = 0.2f;
 }
 
 // Called when the game starts or when spawned
@@ -50,16 +63,18 @@ void AShooterCharacter::Move(const FInputActionValue& Value)
 	if (GetController() && (MovementVector.Y != 0 || MovementVector.X != 0))
 	{
 		// Add movement 
-		AddMovementInput(GetActorForwardVector(), MovementVector.Y);
-		AddMovementInput(GetActorRightVector(), MovementVector.X);
+		//AddMovementInput(GetActorForwardVector(), MovementVector.Y);
+		//AddMovementInput(GetActorRightVector(), MovementVector.X);
 
-		/** Other Way to do the same */
-		/*const FRotator Rotation{ GetController()->GetControlRotation() };
+		/** This is the best way  */
+		const FRotator Rotation{ GetController()->GetControlRotation() };
 		const FRotator YawRotation{ 0, Rotation.Yaw, 0 };
+		
 		const FVector ForwardDirection{ FRotationMatrix{ YawRotation }.GetUnitAxis(EAxis::X)};
 		const FVector RightDirection{ FRotationMatrix{ YawRotation }.GetUnitAxis(EAxis::Y) };
+		
 		AddMovementInput(ForwardDirection, MovementVector.Y);
-		AddMovementInput(RightDirection, MovementVector.X);*/
+		AddMovementInput(RightDirection, MovementVector.X);
 	}
 }
 
