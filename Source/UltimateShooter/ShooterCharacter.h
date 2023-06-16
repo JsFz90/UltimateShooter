@@ -27,14 +27,15 @@ protected:
 	/** Called for look at any direction */
 	void Look(const FInputActionValue& Value);
 
-
 	/** Called when de Fire Button is pressed */
 	void FireWeapon();
+
+	bool GetBeamEndLocation(const FVector& MuzzleSocketLocation, FVector& OutBeamLocation);
 
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-
+	
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 

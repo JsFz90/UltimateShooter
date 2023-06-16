@@ -4,6 +4,7 @@
 #include "ShooterAnimInstance.h"
 #include "ShooterCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 
 void UShooterAnimInstance::UpdateAnimationProperties(float DeltaTime)
 {
@@ -22,6 +23,17 @@ void UShooterAnimInstance::UpdateAnimationProperties(float DeltaTime)
 		// Is the Character accelerating?
 		if (ShooterCharacter->GetCharacterMovement()->GetCurrentAcceleration().Size() > 0.f){ bIsAccelerating = true;}
 		else{ bIsAccelerating = false;}
+
+		// Strafing Movement
+		FRotator AimRotation = ShooterCharacter->GetBaseAimRotation();
+		FRotator MovementRotation = UKismetMathLibrary::MakeRotFromX(ShooterCharacter->GetVelocity());
+		MovementOffset = UKismetMathLibrary::NormalizedDeltaRotator(MovementRotation, AimRotation).Yaw;
+
+		// Debug
+		//FString RotationMessage = FString::Printf(TEXT("Base Aim Rotation: %f"), AimRotation.Yaw);
+		//FString MovementRotationMessage = FString::Printf(TEXT("Movement Rotation: %f"), MovementRotation.Yaw);
+		//FString MovementOffsetMessage = FString::Printf(TEXT("Movement Offset Yaw: %f"), MovementOffset);
+		//if (GEngine) { GEngine->AddOnScreenDebugMessage(1, 0.f, FColor::White, MovementOffsetMessage);}
 	}
 }
 
