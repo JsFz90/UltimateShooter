@@ -21,10 +21,15 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	/** Called for move in any direction */
+	/** Called for move at any direction */
 	void Move(const FInputActionValue& Value);
 
+	/** Called for look at any direction */
 	void Look(const FInputActionValue& Value);
+
+
+	/** Called when de Fire Button is pressed */
+	void FireWeapon();
 
 public:	
 	// Called every frame
@@ -47,6 +52,24 @@ private:
 	/** Base look up/down rate, in deg/sec. Other Scaling may affect final look up/down rate */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	float BaseLookUpRate{ 0 };
+	
+	/** Randomized gunshot sound cue */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	class USoundCue* FireSound;
+	
+	/** Flash spawned at BarrelSocket */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	class UParticleSystem* MuzzleFlash;
+	/** Particles spawned upon bullet impact */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	class UParticleSystem* ImpactParticles;
+	/** Smoke trail for bullet */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	class UParticleSystem* BeamParticles;
+	
+	/** Montage for firing the weapon */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	class UAnimMontage* HipFireMontage;
 
 	/** Configuration to handle Inputs */
 	// Mapping Context
@@ -61,6 +84,9 @@ private:
 	// Jump Input Action
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* JumpAction;
+	// Fires Input Action
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* FireAction;
 
 public:
 	/** Returns CameraBoom subobject */

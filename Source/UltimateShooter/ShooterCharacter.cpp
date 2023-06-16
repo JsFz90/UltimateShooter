@@ -9,6 +9,12 @@
 #include "EnhancedInputSubsystems.h"  //EnhancedInput
 #include "EnhancedInputComponent.h"   //EnhancedInput
 
+#include "Kismet/GameplayStatics.h"    // Sounds
+#include "Sound/SoundCue.h"            // Sounds
+#include "Engine/SkeletalMeshSocket.h"
+#include "DrawDebugHelpers.h"          // Debug
+#include "Particles/ParticleSystemComponent.h"
+
 // Sets default values
 AShooterCharacter::AShooterCharacter() : BaseTurnRate(45.f), BaseLookUpRate(45.f)
 {
@@ -20,20 +26,20 @@ AShooterCharacter::AShooterCharacter() : BaseTurnRate(45.f), BaseLookUpRate(45.f
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 300.f;         // Camera fallows at this distance behind the character
 	CameraBoom->bUsePawnControlRotation = true;   // Rotate the arm based on the controller
+	CameraBoom->SocketOffset = FVector(0.f, 50.f, 50.f);
 
 	/** Create a follow camera  */
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);  // Attach camera to end of boom
 	FollowCamera->bUsePawnControlRotation = false;                               // Camera does not rotate relative to arm
 
-	// Orient Rotation To Movement
-	// Don't rotate when the controller rotates. Let the controller only affect the camera
+	// Strafing Movement
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
+	bUseControllerRotationYaw = true;
 	bUseControllerRotationRoll = false;
 
 	// Configure character movement
-	GetCharacterMovement()->bOrientRotationToMovement = true;  // Character moves in the direction of input
+	GetCharacterMovement()->bOrientRotationToMovement = false;  // Character moves in the direction of input false 
 	GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);  // at this rotation rate - Yaw Direction (Z)
 	GetCharacterMovement()->JumpZVelocity = 600.f;
 	GetCharacterMovement()->AirControl = 0.2f;
@@ -91,6 +97,50 @@ void AShooterCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void AShooterCharacter::FireWeapon()
+{
+	if (FireSound){ UGameplayStatics::PlaySound2D(this, FireSound); }
+
+	const USkeletalMeshSocket* BarrelSocket = GetMesh()->GetSocketByName("BarrelSocket");
+	if (BarrelSocket)
+	{
+		const FTransform SocketTransform = BarrelSocket->GetSocketTransform(GetMesh());
+
+		if (MuzzleFlash) { UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), MuzzleFlash, SocketTransform); }
+		
+		const FVector Start{ SocketTransform.GetLocation() };
+		const FQuat Rotation{ SocketTransform.GetRotation() };
+		const FVector RotationAxisX{ Rotation.GetAxisX() };
+		const FVector End{ Start + RotationAxisX * 50'000.f };
+
+		FVector BeamEndPoint{ End };  // Trail ends at the same point of LineTrace
+
+		FHitResult FireHit;
+		GetWorld()->LineTraceSingleByChannel(FireHit, Start, End, ECollisionChannel::ECC_Visibility);
+		if (FireHit.bBlockingHit)
+		{
+			//DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 2.f);
+			//DrawDebugPoint(GetWorld(), FireHit.Location, 5.f, FColor::Red, false, 2.0f);
+			BeamEndPoint = FireHit.Location; // if hit the trail ends
+
+			if (ImpactParticles){ UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ImpactParticles, FireHit.Location); }
+		}
+		
+		if (BeamParticles)
+		{
+			UParticleSystemComponent* Beam = UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), BeamParticles, SocketTransform);
+			Beam->SetVectorParameter(FName("Target"), BeamEndPoint);
+		}
+	}
+
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && HipFireMontage)
+	{
+		AnimInstance->Montage_Play(HipFireMontage);
+		AnimInstance->Montage_JumpToSection(FName("StartFire"));
+	}
+}
+
 
 // Called every frame
 void AShooterCharacter::Tick(float DeltaTime)
@@ -114,6 +164,8 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		// Jump
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		// Fire Weapon
+		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &AShooterCharacter::FireWeapon);
 
 	}
 }
