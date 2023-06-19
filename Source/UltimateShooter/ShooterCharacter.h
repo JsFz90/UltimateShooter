@@ -32,6 +32,14 @@ protected:
 
 	bool GetBeamEndLocation(const FVector& MuzzleSocketLocation, FVector& OutBeamLocation);
 
+	/** Set bAiming to true or false with button press */
+	void Aiming();
+	void StopAiming();
+	
+	void CameraInterpZoom(float DeltaTime);
+	// Set Base turn rate and Base Look up rate based on aiming
+	void SetLookRates();   
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -72,6 +80,37 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
 	class UAnimMontage* HipFireMontage;
 
+	// True when aiming
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	bool bAiming{ false };
+
+	/** Camera field of view values */
+	float CameraDefaultFOV;   // Default camera field of view value  - Set in Begin Play
+	float CameraZoomedFOV;    // Field of View value for when zoomed in
+	float CameraCurrentFOV;   // Current Field of view this frame
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	float ZoomInterpSpeed;  // Interp speed for zooming when aiming
+
+	/** Aim Look Sensitivity - Turn rates for aimin/not aiming */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	float HipTurnRate; // Turn Rate while not aiming
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	float HipLookUpRate; // Look Up rate when not aiming
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	float AimingTurnRate;     // Turn rate when aiming
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	float AimingLookUpRate;  // Look Up rate when aiming
+
+	/** Mouse Aim Look Sensitivity - Turn rates for aimin/not aiming */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"), meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float MouseHipTurnRate;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"), meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float MouseHipLookUpRate;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"), meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float MouseAimingTurnRate;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"), meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float MouseAimingLookUpRate;
+
 	/** Configuration to handle Inputs */
 	// Mapping Context
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -88,11 +127,15 @@ private:
 	// Fires Input Action
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* FireAction;
+	// Aiming Input Action
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* AimingAction;
 
 public:
 	/** Returns CameraBoom subobject */
 	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; } 
 	/** Returns FollowCamera subobject */
 	FORCEINLINE UCameraComponent* GetFollowCamera() const { return FollowCamera; }
-
+	/** Returns if Character is Aiming */
+	FORCEINLINE bool GetIsAiming() const { return bAiming; }
 };

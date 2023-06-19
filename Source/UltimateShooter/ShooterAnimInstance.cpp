@@ -27,7 +27,14 @@ void UShooterAnimInstance::UpdateAnimationProperties(float DeltaTime)
 		// Strafing Movement
 		FRotator AimRotation = ShooterCharacter->GetBaseAimRotation();
 		FRotator MovementRotation = UKismetMathLibrary::MakeRotFromX(ShooterCharacter->GetVelocity());
-		MovementOffset = UKismetMathLibrary::NormalizedDeltaRotator(MovementRotation, AimRotation).Yaw;
+		MovementOffsetYaw = UKismetMathLibrary::NormalizedDeltaRotator(MovementRotation, AimRotation).Yaw;
+
+		if (ShooterCharacter->GetVelocity().Size() > 0.f)
+		{
+			LastMovementOffsetYaw = MovementOffsetYaw;  // keep this value when velocity = 0 do not update this value
+		}
+
+		bAiming = ShooterCharacter->GetIsAiming();
 
 		// Debug
 		//FString RotationMessage = FString::Printf(TEXT("Base Aim Rotation: %f"), AimRotation.Yaw);

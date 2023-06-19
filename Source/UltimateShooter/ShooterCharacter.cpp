@@ -16,7 +16,12 @@
 #include "Particles/ParticleSystemComponent.h"
 
 // Sets default values
-AShooterCharacter::AShooterCharacter() : BaseTurnRate(45.f), BaseLookUpRate(45.f)
+AShooterCharacter::AShooterCharacter() 
+	: BaseTurnRate(45.f), BaseLookUpRate(45.f), bAiming(false), 
+	CameraDefaultFOV(0.f), CameraZoomedFOV(35.f), CameraCurrentFOV(0.f), ZoomInterpSpeed(30.f),
+	HipTurnRate(90.f), HipLookUpRate(90.f), AimingTurnRate(20.f), AimingLookUpRate(20.f),
+	MouseHipTurnRate(1.0f), MouseHipLookUpRate(1.0f), MouseAimingTurnRate(0.2f), MouseAimingLookUpRate(0.2f)
+
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -24,9 +29,9 @@ AShooterCharacter::AShooterCharacter() : BaseTurnRate(45.f), BaseLookUpRate(45.f
 	/** Create a camera boom  (pulls in towards the character if there is a collision) */
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 300.f;         // Camera fallows at this distance behind the character
+	CameraBoom->TargetArmLength = 200.f;         // Camera fallows at this distance behind the character
 	CameraBoom->bUsePawnControlRotation = true;   // Rotate the arm based on the controller
-	CameraBoom->SocketOffset = FVector(0.f, 50.f, 50.f);
+	CameraBoom->SocketOffset = FVector(0.f, 50.f, 70.f);
 
 	/** Create a follow camera  */
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
@@ -59,6 +64,12 @@ void AShooterCharacter::BeginPlay()
 		}
 	}
 	
+	if (FollowCamera)
+	{ 
+		CameraDefaultFOV = GetFollowCamera()->FieldOfView; 
+		CameraCurrentFOV = CameraDefaultFOV;
+	}
+
 }
 
 void AShooterCharacter::Move(const FInputActionValue& Value)
@@ -91,9 +102,27 @@ void AShooterCharacter::Look(const FInputActionValue& Value)
 
 	if (GetController() && (LookAxisVector.Y != 0 || LookAxisVector.X != 0))
 	{
-		// add yaw and pitch input to controller
-		AddControllerPitchInput(LookAxisVector.Y * BaseLookUpRate * GetWorld()->GetDeltaSeconds()); // Up/Down (Y axis)     deg/sec * sec/frame = deg/frame
-		AddControllerYawInput(LookAxisVector.X * BaseTurnRate * GetWorld()->GetDeltaSeconds());     // Left/Right (Z axis)  deg/sec * sec/frame = deg/frame
+		// add yaw and pitch input to controller 
+		//AddControllerPitchInput(LookAxisVector.Y * BaseLookUpRate * GetWorld()->GetDeltaSeconds()); // Up/Down (Y axis)     deg/sec * sec/frame = deg/frame
+		//AddControllerYawInput(LookAxisVector.X * BaseTurnRate * GetWorld()->GetDeltaSeconds());     // Left/Right (Z axis)  deg/sec * sec/frame = deg/frame
+
+		// Mouse 
+		float MouseTurnScaleFactor{ 0.f };
+		float MouseLookUpScaleFactor{ 0.f };
+		
+		if (bAiming)
+		{
+			MouseTurnScaleFactor = MouseAimingTurnRate;
+			MouseLookUpScaleFactor = MouseAimingLookUpRate;
+
+		}
+		else
+		{
+			MouseTurnScaleFactor = MouseHipTurnRate;
+			MouseLookUpScaleFactor = MouseHipLookUpRate;
+		}
+		AddControllerPitchInput(LookAxisVector.Y * MouseLookUpScaleFactor);
+		AddControllerYawInput(LookAxisVector.X * MouseTurnScaleFactor);
 	}
 }
 
@@ -181,12 +210,49 @@ bool AShooterCharacter::GetBeamEndLocation(const FVector& MuzzleSocketLocation, 
 	return false;
 }
 
+void AShooterCharacter::Aiming()
+{
+	bAiming = true;
+}
+
+void AShooterCharacter::StopAiming()
+{
+	bAiming = false;
+}
+
+void AShooterCharacter::CameraInterpZoom(float DeltaTime)
+{
+	// Set Current Camera field of View
+	if (bAiming) { CameraCurrentFOV = FMath::FInterpTo(CameraCurrentFOV, CameraZoomedFOV, DeltaTime, ZoomInterpSpeed); } // Interpolate to zoomed FOV
+	else { CameraCurrentFOV = FMath::FInterpTo(CameraCurrentFOV, CameraDefaultFOV, DeltaTime, ZoomInterpSpeed); }        // Interpolate to Default FOV
+
+	GetFollowCamera()->SetFieldOfView(CameraCurrentFOV);
+}
+
+void AShooterCharacter::SetLookRates()
+{
+	if (bAiming)
+	{
+		BaseTurnRate = AimingTurnRate;
+		BaseLookUpRate = AimingLookUpRate;
+	}
+	else
+	{
+		BaseTurnRate = HipTurnRate;
+		BaseLookUpRate = HipLookUpRate;
+	}
+}
+
 
 // Called every frame
 void AShooterCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Handle interpolation for zoom when aiming
+	CameraInterpZoom(DeltaTime);  
+	
+	SetLookRates();
 }
 
 // Called to bind functionality to input
@@ -206,7 +272,9 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 		// Fire Weapon
 		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &AShooterCharacter::FireWeapon);
-
+		// Aiming 
+		EnhancedInputComponent->BindAction(AimingAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Aiming);
+		EnhancedInputComponent->BindAction(AimingAction, ETriggerEvent::Completed, this, &AShooterCharacter::StopAiming);
 	}
 }
 
