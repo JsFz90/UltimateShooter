@@ -29,6 +29,11 @@ protected:
 
 	/** Called when de Fire Button is pressed */
 	void FireWeapon();
+	void StartFiring();
+	void StopFiring();
+	void StartFireTimer();
+	UFUNCTION()
+	void AutoFireReset();
 
 	bool GetBeamEndLocation(const FVector& MuzzleSocketLocation, FVector& OutBeamLocation);
 
@@ -43,7 +48,6 @@ protected:
 	void CalculateCrosshairSpread(float DeltaTime);
 
 	void StartCrosshairBulletFire();
-
 	UFUNCTION()
 	void FinishCrosshairBulletFire();
 
@@ -133,6 +137,17 @@ private:
 	float ShootTimeDuration;
 	bool bFiringBullet;
 	FTimerHandle CrooshairShootTimer;
+
+	/** Automatic Guns */
+	/** Left mouse button or right console trigger pressed */
+	bool bFireButtonPressed;
+	/** True when we can fire. False when waiting for the timner */
+	bool bShouldFire;
+	/** Rate of automatic gun fire */
+	float AutomaticFireRate;
+	/** Sets a Timer between gunshots */
+	FTimerHandle AutoFireTimer;
+
 
 	/** Configuration to handle Inputs */
 	// Mapping Context
