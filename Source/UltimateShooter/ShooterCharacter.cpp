@@ -20,8 +20,9 @@ AShooterCharacter::AShooterCharacter()
 	: BaseTurnRate(45.f), BaseLookUpRate(45.f), bAiming(false), 
 	CameraDefaultFOV(0.f), CameraZoomedFOV(35.f), CameraCurrentFOV(0.f), ZoomInterpSpeed(30.f),
 	HipTurnRate(90.f), HipLookUpRate(90.f), AimingTurnRate(20.f), AimingLookUpRate(20.f),
-	MouseHipTurnRate(1.0f), MouseHipLookUpRate(1.0f), MouseAimingTurnRate(0.2f), MouseAimingLookUpRate(0.2f)
-
+	MouseHipTurnRate(1.0f), MouseHipLookUpRate(1.0f), MouseAimingTurnRate(0.2f), MouseAimingLookUpRate(0.2f),
+	CrosshairSpreadMultiplier(0.f), CrosshairVelocityFactor(0.f), CrosshairInAirFactor(0.f), CrosshairAimFactor(0.f), CrosshairShootingFactor(0.f),
+	ShootTimeDuration(0.05f), bFiringBullet(false)
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -29,7 +30,7 @@ AShooterCharacter::AShooterCharacter()
 	/** Create a camera boom  (pulls in towards the character if there is a collision) */
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 200.f;         // Camera fallows at this distance behind the character
+	CameraBoom->TargetArmLength = 250.f;         // Camera fallows at this distance behind the character
 	CameraBoom->bUsePawnControlRotation = true;   // Rotate the arm based on the controller
 	CameraBoom->SocketOffset = FVector(0.f, 50.f, 70.f);
 
@@ -156,6 +157,9 @@ void AShooterCharacter::FireWeapon()
 		AnimInstance->Montage_Play(HipFireMontage);
 		AnimInstance->Montage_JumpToSection(FName("StartFire"));
 	}
+
+	// Start bullet fire timer for crosshairs
+	StartCrosshairBulletFire();
 }
 
 
@@ -167,7 +171,6 @@ bool AShooterCharacter::GetBeamEndLocation(const FVector& MuzzleSocketLocation, 
 
 	/** Get screen space location of crosshairs  */
 	FVector2D CrosshairLocation(ViewportSize.X / 2.f, ViewportSize.Y / 2.f);
-	CrosshairLocation.Y -= 50.f;  // up crosshair a little bit
 
 	// Get world position and Direction of crosshairs
 	FVector CrosshairWorldPosition;
@@ -243,6 +246,63 @@ void AShooterCharacter::SetLookRates()
 	}
 }
 
+void AShooterCharacter::CalculateCrosshairSpread(float DeltaTime)
+{
+	// Calculate crosshair velocity factor
+	FVector2D WalkSpeedRange{ 0.f, 600.f };
+	FVector2D VelocityMultiplierRange{ 0.f, 1.f };
+	FVector Velocity{ GetVelocity() };
+	Velocity.Z = 0.f;
+	
+	CrosshairVelocityFactor = FMath::GetMappedRangeValueClamped(WalkSpeedRange, VelocityMultiplierRange, Velocity.Size());
+
+	// Calculate crosshair in air factor
+	if (GetCharacterMovement()->IsFalling())
+	{
+		// Spread the crosshair slowly while in air
+		CrosshairInAirFactor = FMath::FInterpTo(CrosshairInAirFactor, 2.25f, DeltaTime, 2.25f);
+	}
+	else
+	{
+		// Shrink the crosshair rapidly while on the ground
+		CrosshairInAirFactor = FMath::FInterpTo(CrosshairInAirFactor, 0.f, DeltaTime, 30.f);
+	}
+
+	// Calculeate crosshair aim factor
+	if (bAiming)
+	{
+		CrosshairAimFactor = FMath::FInterpTo(CrosshairAimFactor, 0.6f, DeltaTime, 30.f);
+	}
+	else
+	{
+		CrosshairAimFactor = FMath::FInterpTo(CrosshairAimFactor, 0.f, DeltaTime, 30.f);
+	}
+
+	// True 0.05 second after firing
+	if (bFiringBullet)
+	{
+		CrosshairShootingFactor = FMath::FInterpTo(CrosshairShootingFactor, 0.3f, DeltaTime, 60.f);
+	}
+	else
+	{
+		CrosshairShootingFactor = FMath::FInterpTo(CrosshairShootingFactor, 0.f, DeltaTime, 60.f);
+	}
+
+	CrosshairSpreadMultiplier = 0.5f + CrosshairVelocityFactor + CrosshairInAirFactor - CrosshairAimFactor + CrosshairShootingFactor;  // 0.5f Base Spread
+
+}
+
+void AShooterCharacter::StartCrosshairBulletFire()
+{
+	bFiringBullet = true;
+	GetWorldTimerManager().SetTimer(CrooshairShootTimer, this, &AShooterCharacter::FinishCrosshairBulletFire, ShootTimeDuration);
+}
+
+void AShooterCharacter::FinishCrosshairBulletFire()
+{
+	bFiringBullet = false;
+}
+
 
 // Called every frame
 void AShooterCharacter::Tick(float DeltaTime)
@@ -253,6 +313,8 @@ void AShooterCharacter::Tick(float DeltaTime)
 	CameraInterpZoom(DeltaTime);  
 	
 	SetLookRates();
+
+	CalculateCrosshairSpread(DeltaTime);
 }
 
 // Called to bind functionality to input
