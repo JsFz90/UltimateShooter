@@ -51,6 +51,11 @@ protected:
 	UFUNCTION()
 	void FinishCrosshairBulletFire();
 
+	/** Line Traced under the crosshairs */
+	bool TraceUnderCrosshairs(FHitResult& OutHitResult, FVector& OutHitLocation);
+	/** Trace for Items if OverlappedItemCount > 0 */
+	void TraceForItemsInformation();
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -148,6 +153,14 @@ private:
 	/** Sets a Timer between gunshots */
 	FTimerHandle AutoFireTimer;
 
+	/** Trace For Items */
+	// True if we should trace for item every frame
+	bool bShouldTraceForItem;
+	// Numbers of overlapped items
+	int8 OverlappedItemCount;
+	// The AItem we hit last frame
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Items, meta = (AllowPrivateAccess = "true"))
+	class AItem* ItemHitLastFrame;
 
 	/** Configuration to handle Inputs */
 	// Mapping Context
@@ -177,6 +190,11 @@ public:
 	/** Returns if Character is Aiming */
 	FORCEINLINE bool GetIsAiming() const { return bAiming; }
 
-	UFUNCTION(BlueprintCallable)
-	float GetCrosshairSpreadMultiplier() const { return CrosshairSpreadMultiplier;  }        // Can not be a FORCEINLINE
+	UFUNCTION(BlueprintCallable)  // Can not be a FORCEINLINE when we are using UFUNCTION(BlueprintCallable)
+	float GetCrosshairSpreadMultiplier() const { return CrosshairSpreadMultiplier;  } 
+
+	FORCEINLINE int8 GetOverlappedItemCount() const { return OverlappedItemCount; }
+
+	/** Add/Subtracts to/from OverlappedItemCount */
+	void SetOverlappedItemCount(int8 Amount);
 };
