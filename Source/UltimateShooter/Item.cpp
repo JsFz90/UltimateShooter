@@ -10,7 +10,7 @@
 
 // Sets default values
 AItem::AItem()
-	: ItemName(FString("Default")), ItemCount(0), ItemRarity(EItemRarity::EIR_Common)
+	: ItemName(FString("Default")), ItemCount(0), ItemRarity(EItemRarity::EIR_Common), ItemState(EItemState::EIS_Pickup)
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -20,8 +20,6 @@ AItem::AItem()
 
 	CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
 	CollisionBox->SetupAttachment(ItemMesh);
-	CollisionBox->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
-	CollisionBox->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
 
 	PickupWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("PickupWidget")); 
 	PickupWidget->SetupAttachment(GetRootComponent());
@@ -44,6 +42,9 @@ void AItem::BeginPlay()
 	// Setup Overlap for Area Sphere
 	AreaSphere->OnComponentBeginOverlap.AddDynamic(this, &AItem::OnSphereOverlap);
 	AreaSphere->OnComponentEndOverlap.AddDynamic(this, &AItem::OnSphereEndOverlap);
+
+	// Set Items properties based on ItemState
+	SetItemsProperties(ItemState);
 }
 
 void AItem::OnSphereOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -112,6 +113,73 @@ void AItem::SetActiveStars()
 			break;
 		}
 	}
+}
+
+void AItem::SetItemsProperties(EItemState State)
+{
+	switch (State)
+	{
+		case EItemState::EIS_Pickup:
+		{
+			// Set Mesh properties
+			ItemMesh->SetSimulatePhysics(false);
+			ItemMesh->SetEnableGravity(false);
+			ItemMesh->SetVisibility(true);
+			ItemMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			ItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			// Set Area Sphere properties
+			AreaSphere->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
+			AreaSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			// Set Collision Box properties
+			CollisionBox->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			CollisionBox->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+			CollisionBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			break;
+		}
+		case EItemState::EIS_EquipInterping:
+		{
+			break;
+		}
+		case EItemState::EIS_PickedUp:
+		{
+			break;
+		}
+		case EItemState::EIS_Equipped:
+		{
+			//if (PickupWidget) { PickupWidget->SetVisibility(false); }
+			// Set Mesh properties
+			ItemMesh->SetSimulatePhysics(false);
+			ItemMesh->SetEnableGravity(false);
+			ItemMesh->SetVisibility(true);
+			ItemMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			ItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			// Set Area Sphere properties
+			AreaSphere->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			// Set Collision Box properties
+			CollisionBox->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			break;
+		}
+		case EItemState::EIS_Falling:
+		{
+			// Set Mesh properties
+			ItemMesh->SetSimulatePhysics(true);
+			ItemMesh->SetEnableGravity(true);
+			ItemMesh->SetVisibility(true);
+			ItemMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			ItemMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldDynamic, ECollisionResponse::ECR_Block);
+			ItemMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			// Set Area Sphere properties
+			AreaSphere->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			// Set Collision Box properties
+			CollisionBox->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			break;
+		}
+	}
+
 }
 
 // Called every frame

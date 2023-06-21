@@ -16,7 +16,10 @@
 #include "Particles/ParticleSystemComponent.h"
 
 #include "Components/WidgetComponent.h"
+#include "Components/SphereComponent.h"
+#include "Components/BoxComponent.h"
 #include "Item.h"
+#include "Weapon.h"
 
 // Sets default values
 AShooterCharacter::AShooterCharacter()
@@ -75,6 +78,8 @@ void AShooterCharacter::BeginPlay()
 		CameraCurrentFOV = CameraDefaultFOV;
 	}
 
+	// Spawn the default weapon and attach it to the mesh
+	EquipWeapon(SpawnDefaultWeapon());
 }
 
 void AShooterCharacter::Move(const FInputActionValue& Value)
@@ -197,7 +202,7 @@ bool AShooterCharacter::GetBeamEndLocation(const FVector& MuzzleSocketLocation, 
 {
 	// Check for crosshair trace hit
 	FHitResult CrosshairHitResult;
-	bool bCrosshairHit = TraceUnderCrosshairs(CrosshairHitResult, OutBeamLocation);
+	bool bCrosshairHit = TraceUnderCrosshairs(CrosshairHitResult, OutBeamLocation, 50'000.f);
 
 	if (bCrosshairHit)
 	{
@@ -312,7 +317,7 @@ void AShooterCharacter::FinishCrosshairBulletFire()
 	bFiringBullet = false;
 }
 
-bool AShooterCharacter::TraceUnderCrosshairs(FHitResult& OutHitResult, FVector& OutHitLocation)
+bool AShooterCharacter::TraceUnderCrosshairs(FHitResult& OutHitResult, FVector& OutHitLocation, float Distance)
 {
 	/** (Shoot using Crosshair) Get Current Size of Viewport */
 	FVector2D ViewportSize;
@@ -333,7 +338,7 @@ bool AShooterCharacter::TraceUnderCrosshairs(FHitResult& OutHitResult, FVector& 
 	{
 		// Trace from crosshair world location outward
 		const FVector Start{ CrosshairWorldPosition };
-		const FVector End{ Start + CrosshairWorldDirection * 50'000.f };
+		const FVector End{ Start + CrosshairWorldDirection * Distance };
 		OutHitLocation = End;    // Set endpoint to line trace endpoint
 
 		// Trace outward from crosshairs world location
@@ -355,27 +360,91 @@ void AShooterCharacter::TraceForItemsInformation()
 	{
 		FHitResult ItemHitResult;
 		FVector HitLocation;
-		TraceUnderCrosshairs(ItemHitResult, HitLocation);
+		TraceUnderCrosshairs(ItemHitResult, HitLocation, 400.f);
 
 		if (ItemHitResult.bBlockingHit)
 		{
-			AItem* HitItem = Cast<AItem>(ItemHitResult.GetActor());
-			if (HitItem && HitItem->GetPickupWidget())
+			TraceHitItem = Cast<AItem>(ItemHitResult.GetActor());
+			if (TraceHitItem && TraceHitItem->GetPickupWidget())
 			{
-				HitItem->GetPickupWidget()->SetVisibility(true);
+				TraceHitItem->GetPickupWidget()->SetVisibility(true);
 			}
 
-			if (ItemHitLastFrame && (HitItem != ItemHitLastFrame))  // we are hitting a different AItem this frame from the last frame or HitItem is null
+			if (ItemHitLastFrame && (TraceHitItem != ItemHitLastFrame))  // we are hitting a different AItem this frame from the last frame or HitItem is null
 			{
 				ItemHitLastFrame->GetPickupWidget()->SetVisibility(false);
 			}
-
-			ItemHitLastFrame = HitItem;
+			ItemHitLastFrame = TraceHitItem;
+		}
+		else
+		{
+			if (ItemHitLastFrame) { ItemHitLastFrame->GetPickupWidget()->SetVisibility(false); }
+			ItemHitLastFrame = nullptr;
+			TraceHitItem = nullptr;
 		}
 	}
-	else if(ItemHitLastFrame)
+	else
 	{
-		ItemHitLastFrame->GetPickupWidget()->SetVisibility(false);
+		if (ItemHitLastFrame) ItemHitLastFrame->GetPickupWidget()->SetVisibility(false);
+		ItemHitLastFrame = nullptr;
+		TraceHitItem = nullptr;
+	}
+}
+
+AWeapon* AShooterCharacter::SpawnDefaultWeapon()
+{
+	// Check the TSubclassOf variable
+	if (DefaultWeaponClass)
+	{
+		// Spawn the weapon
+		return GetWorld()->SpawnActor<AWeapon>(DefaultWeaponClass);             // Weapon setting in blueprint
+	}
+
+	return nullptr;
+}
+
+void AShooterCharacter::EquipWeapon(AWeapon* WeaponToEquip)
+{
+	if (WeaponToEquip)
+	{
+		// Get the hand socket
+		const USkeletalMeshSocket* HandSocket = GetMesh()->GetSocketByName(FName("RHandSocket"));
+		// Attach the weapon to the hand socket RHandSocket
+		if (HandSocket) { HandSocket->AttachActor(WeaponToEquip, GetMesh()); }
+
+		EquippedWeapon = WeaponToEquip;
+		EquippedWeapon->SetItemState(EItemState::EIS_Equipped);
+	}
+}
+
+void AShooterCharacter::DropWeapon()
+{
+	if (EquippedWeapon)
+	{
+		FDetachmentTransformRules DetachmentTransformRules(EDetachmentRule::KeepWorld, true);
+		EquippedWeapon->GetItemMesh()->DetachFromComponent(DetachmentTransformRules);
+
+		EquippedWeapon->SetItemState(EItemState::EIS_Falling);
+		EquippedWeapon->ThrowWeapon();
+		
+		EquippedWeapon = nullptr;
+	}
+}
+
+void AShooterCharacter::SwapWeapon(AWeapon* WeaponToSwap)
+{
+	DropWeapon();
+	EquipWeapon(WeaponToSwap);
+	//TraceHitItem = nullptr;
+	//ItemHitLastFrame = nullptr;
+}
+
+void AShooterCharacter::SelectWeapon()
+{
+	if (TraceHitItem)
+	{
+		AWeapon* TraceHitWeapon = Cast<AWeapon>(TraceHitItem);
+		SwapWeapon(TraceHitWeapon);
 	}
 }
 
@@ -416,6 +485,8 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		// Aiming 
 		EnhancedInputComponent->BindAction(AimingAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Aiming);
 		EnhancedInputComponent->BindAction(AimingAction, ETriggerEvent::Completed, this, &AShooterCharacter::StopAiming);
+		// Select 
+		EnhancedInputComponent->BindAction(SelectAction, ETriggerEvent::Triggered, this, &AShooterCharacter::SelectWeapon); // for test
 	}
 }
 

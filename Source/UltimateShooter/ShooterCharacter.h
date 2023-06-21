@@ -52,9 +52,20 @@ protected:
 	void FinishCrosshairBulletFire();
 
 	/** Line Traced under the crosshairs */
-	bool TraceUnderCrosshairs(FHitResult& OutHitResult, FVector& OutHitLocation);
+	bool TraceUnderCrosshairs(FHitResult& OutHitResult, FVector& OutHitLocation, float Distance);
 	/** Trace for Items if OverlappedItemCount > 0 */
 	void TraceForItemsInformation();
+
+	// Spawns a default weapon and equips it
+	class AWeapon* SpawnDefaultWeapon();
+	// Takes a weapon and attaches it to the mesh
+	void EquipWeapon(class AWeapon* WeaponToEquip);
+	// Detach Weapon and let it fall to the ground
+	void DropWeapon();
+	// Drops Currently equipped weapon and equips traceHitItem
+	void SwapWeapon(class AWeapon* WeaponToSwap);
+
+	void SelectWeapon();
 
 public:	
 	// Called every frame
@@ -162,6 +173,19 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Items, meta = (AllowPrivateAccess = "true"))
 	class AItem* ItemHitLastFrame;
 
+	// Weapon
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	class AWeapon* EquippedWeapon;
+
+	/** Set this in Blueprints for the default weapon class */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<AWeapon> DefaultWeaponClass;
+
+	/** The Item currently hit by our trace in trace for Items (could be null) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	class AItem* TraceHitItem;
+
+
 	/** Configuration to handle Inputs */
 	// Mapping Context
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -181,6 +205,9 @@ private:
 	// Aiming Input Action
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* AimingAction;
+	// Select Input Action
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* SelectAction;
 
 public:
 	/** Returns CameraBoom subobject */
