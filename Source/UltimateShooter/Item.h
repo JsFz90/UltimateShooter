@@ -54,6 +54,11 @@ protected:
 	void SetActiveStars();
 	// Sets properties of the item's component  based on state
 	void SetItemsProperties(EItemState State);
+	// Called when ItemInterpTimer is finished
+	void FinishInterping();
+
+	// Handles Item interpolation when in the EquipInterp State
+	void ItemInterp(float DeltaTime);
 
 public:	
 	// Called every frame
@@ -89,6 +94,38 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Properties", meta = (AllowPrivateAccess = "true"))
 	EItemState ItemState;
 
+	// Curve asset to use for the item's Z location when interping
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Properties", meta = (AllowPrivateAccess = "true"))
+	class UCurveFloat* ItemZCurve;
+	// Starting location when interping begins
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Properties", meta = (AllowPrivateAccess = "true"))
+	FVector ItemIterpStartLocation;
+	// Target Interp location in front of the camera
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Properties", meta = (AllowPrivateAccess = "true"))
+	FVector CameraTargetLocation;
+	// True when interping
+	bool bInterping;
+	// PLays when we start interping
+	FTimerHandle ItemInterpTimer;
+	// Duration of the curve and timer
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Properties", meta = (AllowPrivateAccess = "true"))
+	float ZCurveTime;
+	// Pointer to the character
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Properties", meta = (AllowPrivateAccess = "true"))
+	class AShooterCharacter* Character;
+
+	// X and Y for the item while interping in the EquipInterping
+	float ItemInterpX;
+	float ItemInterpY;
+
+	// Initial Yaw offset between the camera and the interping item
+	float InterpInitialYawOffset;
+
+	// Curve asset to scale item when interping
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Properties", meta = (AllowPrivateAccess = "true"))
+	class UCurveFloat* ItemScaleCurve;
+
+
 public:
 	FORCEINLINE UWidgetComponent* GetPickupWidget() const { return PickupWidget; }
 	FORCEINLINE USphereComponent* GetAreaSphere() const { return AreaSphere; }
@@ -98,4 +135,7 @@ public:
 	void SetItemState(EItemState State) { ItemState = State; SetItemsProperties(State); }
 
 	FORCEINLINE USkeletalMeshComponent* GetItemMesh() const { return ItemMesh; }
+
+	// Call from the AShooterCharacter class
+	void StartItemCurve(class AShooterCharacter* ShooterCharacter);
 };

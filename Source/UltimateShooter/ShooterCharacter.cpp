@@ -29,7 +29,7 @@ AShooterCharacter::AShooterCharacter()
 	MouseHipTurnRate(1.0f), MouseHipLookUpRate(1.0f), MouseAimingTurnRate(0.2f), MouseAimingLookUpRate(0.2f),
 	CrosshairSpreadMultiplier(0.f), CrosshairVelocityFactor(0.f), CrosshairInAirFactor(0.f), CrosshairAimFactor(0.f), CrosshairShootingFactor(0.f),
 	ShootTimeDuration(0.05f), bFiringBullet(false), bFireButtonPressed(false), bShouldFire(true), AutomaticFireRate(0.1f),
-	bShouldTraceForItem(false)
+	bShouldTraceForItem(false), CameraInterpDistance(250.f), CameraInterpElevation(65.f)
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -360,7 +360,7 @@ void AShooterCharacter::TraceForItemsInformation()
 	{
 		FHitResult ItemHitResult;
 		FVector HitLocation;
-		TraceUnderCrosshairs(ItemHitResult, HitLocation, 400.f);
+		TraceUnderCrosshairs(ItemHitResult, HitLocation, 500.f);
 
 		if (ItemHitResult.bBlockingHit)
 		{
@@ -443,8 +443,7 @@ void AShooterCharacter::SelectWeapon()
 {
 	if (TraceHitItem)
 	{
-		AWeapon* TraceHitWeapon = Cast<AWeapon>(TraceHitItem);
-		SwapWeapon(TraceHitWeapon);
+		TraceHitItem->StartItemCurve(this);
 	}
 }
 
@@ -501,6 +500,24 @@ void AShooterCharacter::SetOverlappedItemCount(int8 Amount)
 	{
 		OverlappedItemCount += Amount;
 		bShouldTraceForItem = true;
+	}
+}
+
+FVector AShooterCharacter::GetCameraInterpLocation()
+{
+	const FVector CameraWorldLocation{ FollowCamera->GetComponentLocation() };
+	const FVector CameraForward{ FollowCamera->GetForwardVector() };
+
+	// FVector(0.f, 0.f, CameraInterpElevation)  up vector
+	return CameraWorldLocation + CameraForward * CameraInterpDistance + FVector(0.f, 0.f, CameraInterpElevation);  
+}
+
+void AShooterCharacter::GetPickupItem(AItem* Item)
+{
+	AWeapon* Weapon = Cast<AWeapon>(Item);
+	if (Weapon)
+	{
+		SwapWeapon(Weapon);
 	}
 }
 
