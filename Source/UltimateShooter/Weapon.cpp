@@ -4,7 +4,7 @@
 #include "Weapon.h"
 
 AWeapon::AWeapon()
-	: ThrowWeaponTime(0.7f), bFalling(false)
+	: ThrowWeaponTime(0.7f), bFalling(false), Ammo(0)
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -29,6 +29,18 @@ void AWeapon::ThrowWeapon()
 	bFalling = true;
 
 	GetWorldTimerManager().SetTimer(ThrowWeaponTimer, this, &AWeapon::StopFalling, ThrowWeaponTime);
+}
+
+void AWeapon::DecrementAmmo()
+{
+	if (Ammo - 1 <= 0 )
+	{
+		Ammo = 0;
+	}
+	else
+	{
+		--Ammo;
+	}
 }
 
 void AWeapon::StopFalling()
