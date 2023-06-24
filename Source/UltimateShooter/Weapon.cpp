@@ -4,7 +4,8 @@
 #include "Weapon.h"
 
 AWeapon::AWeapon()
-	: ThrowWeaponTime(0.7f), bFalling(false), Ammo(0)
+	: ThrowWeaponTime(0.7f), bFalling(false), Ammo(30), MagazineCapacity(30), WeaponType(EWeaponType::EWT_SubmachineGun), 
+	AmmoType(EAmmoType::EAT_9mm), ReloadMontageSection(FName(TEXT("ReloadSMG"))), ClipBoneName(FName(TEXT("smg_clip")))
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -41,6 +42,13 @@ void AWeapon::DecrementAmmo()
 	{
 		--Ammo;
 	}
+}
+
+void AWeapon::ReloadAmmo(int32 Amount)
+{
+	// Stop if checkf fail
+	checkf(Ammo + Amount <= MagazineCapacity, TEXT("Attempted to reload with more than magazine capacity "));
+	Ammo += Amount;
 }
 
 void AWeapon::StopFalling()

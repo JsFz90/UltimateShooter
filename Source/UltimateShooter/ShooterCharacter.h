@@ -5,17 +5,10 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"              //EnhancedInput
+#include "AmmoType.h"
 #include "ShooterCharacter.generated.h"
 
 
-UENUM(BlueprintType)
-enum class EAmmoType : uint8
-{
-	EAT_9mm UMETA(DisplayName = "9mm"),
-	EAT_AR UMETA(DisplayName = "AssaultRifle"),
-
-	EAT_MAX UMETA(DisplayName = "DefaultMAX")
-};
 
 UENUM(BlueprintType)
 enum class ECombatState : uint8
@@ -93,6 +86,26 @@ protected:
 	// Check to make sure our weapon has ammo;
 	bool WeaponHasAmmo();
 
+	// Fire Weapon functions
+	void PlayFireSound();
+	void SendBullet();
+	void PlayGunFireMontage();
+
+	// Reload Weapons functions
+	void StartReloading();
+	void ReloadWeapon();
+
+	UFUNCTION(BlueprintCallable)
+	void FinishReloading();
+
+	// Check to see if we have ammo of the Equipped Weapon ammo type
+	bool CarryingAmmo();
+
+	// Called from animation Blueprint with Grab/Release notify
+	UFUNCTION(BlueprintCallable)
+	void GrabClip();
+	UFUNCTION(BlueprintCallable)
+	void ReleaseClip();
 
 public:	
 	// Called every frame
@@ -229,6 +242,19 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Items, meta = (AllowPrivateAccess = "true"))
 	int32 StartingARAmmo;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	ECombatState CombatState;
+
+	// Montage for reloading animation
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	class UAnimMontage* ReloadMontage;
+	
+	// Transform of the clipwhen we first grab the clip during reloading
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	FTransform ClipTransform;
+	// Scene Component to Attach to the character's hand during reloading
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	USceneComponent* HandSceneComponent;
 
 	/** Configuration to handle Inputs */
 	// Mapping Context
@@ -252,6 +278,10 @@ private:
 	// Select Input Action
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* SelectAction;
+	// Reload Input Action
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* ReloadAction;
+
 
 public:
 	/** Returns CameraBoom subobject */

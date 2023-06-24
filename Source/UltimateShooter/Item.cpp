@@ -206,6 +206,8 @@ void AItem::FinishInterping()
 	}
 	// Back to intem normal scale
 	SetActorScale3D(FVector(1.0f));
+
+
 }
 
 void AItem::ItemInterp(float DeltaTime)
