@@ -18,19 +18,21 @@
 #include "Components/WidgetComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Item.h"
 #include "Weapon.h"
 
 // Sets default values
 AShooterCharacter::AShooterCharacter()
 	: BaseTurnRate(45.f), BaseLookUpRate(45.f), bAiming(false),
-	CameraDefaultFOV(0.f), CameraZoomedFOV(35.f), CameraCurrentFOV(0.f), ZoomInterpSpeed(30.f),
+	CameraDefaultFOV(0.f), CameraZoomedFOV(25.f), CameraCurrentFOV(0.f), ZoomInterpSpeed(30.f),
 	HipTurnRate(90.f), HipLookUpRate(90.f), AimingTurnRate(20.f), AimingLookUpRate(20.f),
-	MouseHipTurnRate(1.0f), MouseHipLookUpRate(1.0f), MouseAimingTurnRate(0.2f), MouseAimingLookUpRate(0.2f),
+	MouseHipTurnRate(1.0f), MouseHipLookUpRate(1.0f), MouseAimingTurnRate(0.4f), MouseAimingLookUpRate(0.4f),
 	CrosshairSpreadMultiplier(0.f), CrosshairVelocityFactor(0.f), CrosshairInAirFactor(0.f), CrosshairAimFactor(0.f), CrosshairShootingFactor(0.f),
 	ShootTimeDuration(0.05f), bFiringBullet(false), bFireButtonPressed(false), bShouldFire(true), AutomaticFireRate(0.1f),
 	bShouldTraceForItem(false), CameraInterpDistance(250.f), CameraInterpElevation(65.f), Starting9mmAmmo(85), StartingARAmmo(120),
-	CombatState(ECombatState::ECS_Unoccupied)
+	CombatState(ECombatState::ECS_Unoccupied), bCrouching(false), BaseMovementSpeed(650.f), CrouchMovementSpeed(300.f),
+	StandingCapsuleHeight(88.f), CrouchingCapsuleHeight(44.f), BaseGroundFriction(2.f), CrouchingGroundFriction(100.f)
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -86,6 +88,8 @@ void AShooterCharacter::BeginPlay()
 	EquipWeapon(SpawnDefaultWeapon());
 
 	InitializeAmmoMap();
+
+	GetCharacterMovement()->MaxWalkSpeed = BaseMovementSpeed;
 }
 
 void AShooterCharacter::Move(const FInputActionValue& Value)
@@ -213,14 +217,18 @@ bool AShooterCharacter::GetBeamEndLocation(const FVector& MuzzleSocketLocation, 
 	return false;
 }
 
-void AShooterCharacter::Aiming()
+void AShooterCharacter::Aim()
 {
+	if (CombatState == ECombatState::ECS_Reloading) return;
+	
 	bAiming = true;
+	GetCharacterMovement()->MaxWalkSpeed = CrouchMovementSpeed;
 }
 
 void AShooterCharacter::StopAiming()
 {
 	bAiming = false;
+	if (!bCrouching) { GetCharacterMovement()->MaxWalkSpeed = BaseMovementSpeed; }
 }
 
 void AShooterCharacter::CameraInterpZoom(float DeltaTime)
@@ -499,12 +507,10 @@ void AShooterCharacter::ReloadWeapon()
 	if (CombatState != ECombatState::ECS_Unoccupied) return;
 	if (!EquippedWeapon) return;
 
-	const int32 MagazineEmptySpace = EquippedWeapon->GetMagazineCapacity() - EquippedWeapon->GetAmmo();
-	if (MagazineEmptySpace == 0) return;
-
 	// Do we have ammo of the correct type
-	if (CarryingAmmo())  
+	if (CarryingAmmo() && !EquippedWeapon->GetClipIsFull())  
 	{
+		if (bAiming) { StopAiming(); }
 		CombatState = ECombatState::ECS_Reloading;
 
 		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
@@ -582,6 +588,55 @@ void AShooterCharacter::ReleaseClip()
 	EquippedWeapon->SetMovingClip(false);
 }
 
+void AShooterCharacter::Crouch()
+{
+	if (GetCharacterMovement()->IsFalling()) return;
+	//UE_LOG(LogTemp, Warning, TEXT("bool myBool: %d"), bCrouching);
+	bCrouching = !bCrouching;
+
+	if (bCrouching) 
+	{ 
+		GetCharacterMovement()->MaxWalkSpeed = CrouchMovementSpeed;  
+		GetCharacterMovement()->GroundFriction = CrouchingGroundFriction;
+	}
+	else 
+	{ 
+		GetCharacterMovement()->MaxWalkSpeed = BaseMovementSpeed; 
+		GetCharacterMovement()->GroundFriction = BaseGroundFriction;
+	}
+}
+
+void AShooterCharacter::Jump()
+{
+	if (bCrouching)
+	{
+		bCrouching = false;
+		GetCharacterMovement()->MaxWalkSpeed = BaseMovementSpeed;
+		GetCharacterMovement()->GroundFriction = BaseGroundFriction;
+	}
+	else
+	{
+		ACharacter::Jump();
+	}
+
+}
+
+void AShooterCharacter::InterpCapsuleHeight(float DeltaTime)
+{
+	float TargetCapsuleHeight{};
+	if (bCrouching){ TargetCapsuleHeight = CrouchingCapsuleHeight; }
+	else{ TargetCapsuleHeight = StandingCapsuleHeight;}
+
+	const float InterpHeight{ FMath::FInterpTo(GetCapsuleComponent()->GetScaledCapsuleHalfHeight(), TargetCapsuleHeight, DeltaTime, 20.f) };
+
+	// Negative value if crouching and positive value if standing
+	const float DeltaCapsuleHeight{ InterpHeight - GetCapsuleComponent()->GetScaledCapsuleHalfHeight() }; 
+	const FVector MeshOffset{ 0.f, 0.f, -DeltaCapsuleHeight };
+	GetMesh()->AddLocalOffset(MeshOffset);
+
+	GetCapsuleComponent()->SetCapsuleHalfHeight(InterpHeight); // Set New Capsule Height
+}
+
 
 // Called every frame
 void AShooterCharacter::Tick(float DeltaTime)
@@ -596,6 +651,9 @@ void AShooterCharacter::Tick(float DeltaTime)
 	CalculateCrosshairSpread(DeltaTime);
 
 	TraceForItemsInformation();
+
+	// Interpolate the capsule height based on crouching / standing
+	InterpCapsuleHeight(DeltaTime);
 }
 
 // Called to bind functionality to input
@@ -611,18 +669,20 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		// Look 
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Look);
 		// Jump
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 		// Fire Weapon
 		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &AShooterCharacter::StartFiring);
 		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Completed, this, &AShooterCharacter::StopFiring);
 		// Aiming 
-		EnhancedInputComponent->BindAction(AimingAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Aiming);
+		EnhancedInputComponent->BindAction(AimingAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Aim);
 		EnhancedInputComponent->BindAction(AimingAction, ETriggerEvent::Completed, this, &AShooterCharacter::StopAiming);
 		// Select 
 		EnhancedInputComponent->BindAction(SelectAction, ETriggerEvent::Triggered, this, &AShooterCharacter::SelectWeapon); // for test
 		// Reload
 		EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AShooterCharacter::StartReloading);
+		// Crouch
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Triggered, this, &AShooterCharacter::Crouch);
 	}
 }
 
