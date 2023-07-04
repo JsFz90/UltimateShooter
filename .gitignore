@@ -1,7 +1,9 @@
 # Visual Studio 2015 user specific files
 .vs/
 
+
 Content/ParagonLtBelica/
+Content/
 
 # Compiled Object files
 *.slo

@@ -1,11 +1,13 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Item.h"
+#include "Item.h" 
 #include "Components/BoxComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Components/SphereComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundCue.h"
 
 #include "ShooterCharacter.h"
 
@@ -13,7 +15,7 @@
 AItem::AItem()
 	: ItemName(FString("Default")), ItemCount(0), ItemRarity(EItemRarity::EIR_Common), ItemState(EItemState::EIS_Pickup),
 	ItemIterpStartLocation(FVector(0.f)), CameraTargetLocation(FVector(0.f)), bInterping(false), ZCurveTime(0.7f),
-	ItemInterpX(0.f), ItemInterpY(0.f), InterpInitialYawOffset(0.f)
+	ItemInterpX(0.f), ItemInterpY(0.f), InterpInitialYawOffset(0.f), ItemType(EItemType::EIT_MAX), InterpLocationIndex(0)
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -202,6 +204,7 @@ void AItem::FinishInterping()
 	bInterping = false;
 	if (Character)
 	{
+		Character->IncrementInterpLocationCount(InterpLocationIndex, -1);
 		Character->GetPickupItem(this);
 	}
 	// Back to intem normal scale
@@ -223,7 +226,8 @@ void AItem::ItemInterp(float DeltaTime)
 
 		FVector ItemLocation = ItemIterpStartLocation;
 		// Get Location in front of the camera
-		const FVector CameraInterpLocation{ Character->GetCameraInterpLocation() };
+		//const FVector CameraInterpLocation{ Character->GetCameraInterpLocation() };
+		const FVector CameraInterpLocation{ GetInterpLocation()};
 		// Vector from Item to Camera InterpLocation, x and y are zero - up vector
 		const FVector ItemToCamera{ FVector(0.f, 0.f, (CameraInterpLocation - ItemLocation).Z) };
 		// Scale factor to multiply with Curve value
@@ -256,6 +260,48 @@ void AItem::ItemInterp(float DeltaTime)
 	}
 }
 
+FVector AItem::GetInterpLocation()
+{
+	if (!Character) return FVector(0.f);
+
+	switch (ItemType)
+	{
+		case EItemType::EIT_Ammo:
+		{
+			return Character->GetInterpLocation(InterpLocationIndex).SceneComponent->GetComponentLocation();
+			break;
+		}
+		case EItemType::EIT_Weapon:
+		{
+			return Character->GetInterpLocation(0).SceneComponent->GetComponentLocation();
+			break;
+		}
+	}
+	return FVector(0.f);
+}
+
+void AItem::PlayPickupSound()
+{
+	if (!Character) return;
+	
+	if (Character->GetShouldPlayPickupSound())
+	{
+		Character->StartPickupSoundTimer();
+		if (PickupSound) { UGameplayStatics::PlaySound2D(this, PickupSound); }
+	}
+}
+
+void AItem::PlayEquipSound()
+{
+	if (!Character) return;
+
+	if (Character->GetShouldPlayEquipSound())
+	{
+		Character->StartEquipSoundTimer();
+		if (PickupSound) { UGameplayStatics::PlaySound2D(this, PickupSound); }
+	}
+}
+
 // Called every frame
 void AItem::Tick(float DeltaTime)
 {
@@ -266,13 +312,18 @@ void AItem::Tick(float DeltaTime)
 
 void AItem::StartItemCurve(AShooterCharacter* ShooterCharacter)
 {
-	// Store a ref to Character
-	Character = ShooterCharacter;
-	// Store Initial Location of the item
-	ItemIterpStartLocation = GetActorLocation();
-
 	bInterping = true;
 	SetItemState(EItemState::EIS_EquipInterping);
+	// Store a ref to Character
+	Character = ShooterCharacter;
+	InterpLocationIndex = Character->GetInterpLocationIndex();
+	// Add one to the item Count for this interp Location struct
+	Character->IncrementInterpLocationCount(InterpLocationIndex, 1);
+
+	PlayPickupSound();
+
+	// Store Initial Location of the item
+	ItemIterpStartLocation = GetActorLocation();
 
 	GetWorldTimerManager().SetTimer(ItemInterpTimer, this, &AItem::FinishInterping, ZCurveTime);
 
